@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>dtrack_publisher</name>
+  <version>0.0.1</version>
+  <description>Publishes pose data from DTrack3 over UDP</description>
+
+  <maintainer email="krininger.matthew@gmail.com">Your Name</maintainer>
+  <license>MIT</license>
+
+  <!-- Required build tools -->
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <!-- Dependencies your code uses -->
+  <depend>rospy</depend>
+  <depend>std_msgs</depend>
+  <depend>geometry_msgs</depend>
+
+  <!-- Export to make sure Python scripts work -->
+  <export>
+  </export>
+</package>
