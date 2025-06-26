@@ -1,5 +1,6 @@
 <launch>
   <node pkg="dtrack_publisher" type="dtrack_node.py" name="dtrack_publisher" output="screen" />
+  <node pkg="dtrack_publisher" type="pose_to_path.py" name="path_builder" />
   <!--node pkg="dtrack_publisher" type="odom_to_drack.py" name="odom_to_dtrack_broadcaster" output="screen" />
   <node pkg="dtrack_publisher" type="dtrack_world_broadcaster.py" name="dtrack_world_broadcaster" output="screen" /-->
 </launch>
