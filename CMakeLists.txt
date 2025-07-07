@@ -20,5 +20,6 @@ catkin_install_python(PROGRAMS
   scripts/pose_to_path.py
   scripts/mocap_record.py
   scripts/odom_record.py
+  scripts/data_logger_node.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )

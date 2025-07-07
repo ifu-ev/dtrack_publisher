@@ -18,7 +18,7 @@ class PathBuilder:
         self.path_msg.header.stamp = rospy.Time.now()
         self.path_msg.poses.append(pose)
 
-        if len(self.path_msg.poses) > 500:
+        if len(self.path_msg.poses) > 5000:
             self.path_msg.poses.pop(0)
 
         self.path_pub.publish(self.path_msg)

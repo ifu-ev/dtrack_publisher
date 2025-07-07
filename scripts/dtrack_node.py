@@ -7,7 +7,7 @@ import math
 from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import Path
 import tf
-from tf.transformations import quaternion_from_euler, quaternion_inverse, quaternion_multiply
+from tf.transformations import quaternion_from_euler
 
 class DTrack3Node:
     def __init__(self):
@@ -22,7 +22,6 @@ class DTrack3Node:
 
         self.br = tf.TransformBroadcaster()
         self.origin_position = None
-        self.origin_orientation_quat = None
 
         self.path_msg = Path()
         self.path_msg.header.frame_id = "odom_mocap"
@@ -58,16 +57,11 @@ class DTrack3Node:
 
                             if self.origin_position is None:
                                 self.origin_position = (x, y, z)
-                            if self.origin_orientation_quat is None:
-                                self.origin_orientation_quat = q_current
 
                             ox, oy, oz = self.origin_position
-                            x_adj = -(x - ox)
-                            y_adj = -(y - oy)
+                            x_adj = x - ox
+                            y_adj = y - oy
                             z_adj = z - oz
-
-                            q_origin_inv = quaternion_inverse(self.origin_orientation_quat)
-                            q_relative = quaternion_multiply(q_origin_inv, q_current)
 
                             pose = PoseStamped()
                             pose.header.stamp = rospy.Time.now()
@@ -75,10 +69,10 @@ class DTrack3Node:
                             pose.pose.position.x = x_adj
                             pose.pose.position.y = y_adj
                             pose.pose.position.z = z_adj
-                            pose.pose.orientation.x = q_relative[0]
-                            pose.pose.orientation.y = q_relative[1]
-                            pose.pose.orientation.z = q_relative[2]
-                            pose.pose.orientation.w = q_relative[3]
+                            pose.pose.orientation.x = q_current[0]
+                            pose.pose.orientation.y = q_current[1]
+                            pose.pose.orientation.z = q_current[2]
+                            pose.pose.orientation.w = q_current[3]
 
                             poses.append(pose)
                 except Exception as e:
@@ -103,11 +97,10 @@ class DTrack3Node:
                 for pose in poses:
                     self.pose_pub.publish(pose)
 
-                    # Update path message
+                    # Update path
                     self.path_msg.header.stamp = rospy.Time.now()
                     self.path_msg.poses.append(pose)
 
-                    # Limit path length (e.g., keep last 500 points)
                     if len(self.path_msg.poses) > 500:
                         self.path_msg.poses.pop(0)
 
