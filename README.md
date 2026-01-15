@@ -2,13 +2,15 @@
 
 This package utilizes the pose and path of the detected objects and publishes it to the ros-topics `/dtrack_pose` and `/dtrack_path`.
 
-- To get the data first you need to connect the DTRACK-Controller to your desktop computer.
-- Then start the DTRACK software: 
+- To get the data first you need to start the DTRACK-Motion-Capute-System
+  - first connect the DTRACK-Controller to your desktop computer via ethernet
+  - set your ethernet-ipv4 to the static ip: 192.168.1.2
   - start the power switch of the DTRACK controller
-  - copy the software from the USB-stick in your home folder
-  - `cd ~/art-tracking/ART-DTrack3/Software/LINUX/DTRACK3_v3.3.1_linux64/DTRACK3_v3.3.1/bin`
-  - `./DTRACK3.bin`
-  - hopefully you have valid licence
+  - then start the DTRACK software
+    - copy the software from the USB-stick in your home folder
+    - `cd ~/art-tracking/ART-DTrack3/Software/LINUX/DTRACK3_v3.3.1_linux64/DTRACK3_v3.3.1/bin`
+    - `./DTRACK3.bin`
+    - hopefully you have valid licence
 - if you used the setup.sh skript in kalimoro_ws you should already have the dtrack_publisher package in your lokal workspace and already sourced it.
 - start the launchfile: `roslaunch dtrack_publisher dtrack_with_odom.launch`
 - check topics: `rostopic echo /odom`, `rostopic echo /imu`, `rostopic echo /dtrack_pose`
