@@ -7,7 +7,26 @@ import math
 from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import Path
 import tf
-from tf.transformations import quaternion_from_euler
+from tf.transformations import quaternion_matrix, quaternion_from_matrix, quaternion_from_euler
+import numpy as np
+
+def pose_to_matrix(position, quaternion):
+    T = quaternion_matrix(quaternion)
+    T[:3, 3] = position
+    return T
+
+def invert_matrix(T):
+    R = T[:3, :3]
+    t = T[:3, 3]
+    T_inv = np.eye(4)
+    T_inv[:3, :3] = R.T
+    T_inv[:3, 3] = -R.T @ t
+    return T_inv
+
+def matrix_to_pose(T):
+    position = T[:3, 3]
+    quaternion = quaternion_from_matrix(T)
+    return position, quaternion
 
 class DTrack3Node:
     def __init__(self):
@@ -30,7 +49,7 @@ class DTrack3Node:
         self.odom_path_msg.header.frame_id = "odom_mocap"
 
         self.world_path_msg = Path()
-        self.world_path_msg.header.frame_id = "world"
+        self.world_path_msg.header.frame_id = "mocap_robot"
 
         self.path_msg_max_len = 500
 
@@ -112,7 +131,7 @@ class DTrack3Node:
         )  
 
         self.br.sendTransform(
-                (0.855771, 0.325434, -0.303391), # z ergibt keinen sinn
+                (0.855771, 0.325434, -0.303391),
                 (-0.015785, -0.691817, 0.721640, 0.009282), #erste Schätzung TODO genauer bestimmen
                 rospy.Time.now(),
                 "mason/torsten/base_link",
@@ -129,13 +148,28 @@ class DTrack3Node:
         except:
             pass
 
-    def publish_world_base_link_transform(self, pose: PoseStamped):
+    def publish_world_base_link_transform(self, pose_msg):
+        T_world_child = pose_to_matrix(
+            [pose_msg.pose.position.x,
+            pose_msg.pose.position.y,
+            pose_msg.pose.position.z],
+            [pose_msg.pose.orientation.x,
+            pose_msg.pose.orientation.y,
+            pose_msg.pose.orientation.z,
+            pose_msg.pose.orientation.w]
+        )
+
+        # Nur aktivieren, falls pose_msg eigentlich child -> world ist:
+        # T_world_child = invert_matrix(T_world_child)
+
+        pos, quat = matrix_to_pose(T_world_child)
+
         self.br.sendTransform(
-            (pose.pose.position.x, pose.pose.position.y, pose.pose.position.z),
-            (pose.pose.orientation.x, pose.pose.orientation.y, pose.pose.orientation.z, pose.pose.orientation.w),
+            (pos[0], pos[1], pos[2]),
+            (quat[0], quat[1], quat[2], quat[3]),
             rospy.Time.now(),
-            "mocap_robot", # mocap_robot -> base_link noch unbekannt... TODO bestimmen
-            "world"
+            'mason/torsten/base_link',
+            'world'
         )
 
     def run(self):
@@ -171,8 +205,6 @@ class DTrack3Node:
                     self.world_path_pub.publish(self.world_path_msg)
 
                     self.publish_world_base_link_transform(world_pose)
-
-                # self.publish_static_transform()
             except socket.timeout:
                 self.publish_static_transform()
                 continue
