@@ -49,7 +49,7 @@ class DTrack3Node:
         self.odom_path_msg.header.frame_id = "odom_mocap"
 
         self.world_path_msg = Path()
-        self.world_path_msg.header.frame_id = "mocap_robot"
+        self.world_path_msg.header.frame_id = "mocap_torsten"
 
         self.path_msg_max_len = 500
 
@@ -106,7 +106,7 @@ class DTrack3Node:
 
                             world_pose = PoseStamped()
                             world_pose.header.stamp = pub_time
-                            world_pose.header.frame_id = "world" # alternativ: mocap oder mocap_world?
+                            world_pose.header.frame_id = "mocap_torsten" # alternativ: mocap oder mocap_world?
                             world_pose.pose.position.x = x
                             world_pose.pose.position.y = y
                             world_pose.pose.position.z = z
@@ -122,31 +122,23 @@ class DTrack3Node:
         return odom_poses, world_poses
 
     def publish_static_transform(self):      
+        # self.br.sendTransform(
+        #         (0.0, 0.0, 0.0),
+        #         # (0.0, 0.0, 0.0, 1.0),
+        #         (0.0, 0.0, -1.0, 0.0),
+        #         rospy.Time.now(),
+        #         "odom_mocap",
+        #         "odom"
+        # )  
         self.br.sendTransform(
-                (0.0, 0.0, 0.0),
-                (0.0, 0.0, 0.0, 1.0),
+                (0.0, 0.0, 0.5),
+                (0.0, 0.0, -1.0, 0.0),
+                #(0.84070985, -0.29656136,  0.36817889),
+                #(-0.01578729, -0.69191721,  0.72174453, -0.00928334), #erste Schätzung TODO genauer bestimmen
                 rospy.Time.now(),
-                "odom_mocap",
-                "odom"
-        )  
-
-        self.br.sendTransform(
-                (0.855771, 0.325434, -0.303391),
-                (-0.015785, -0.691817, 0.721640, 0.009282), #erste Schätzung TODO genauer bestimmen
-                rospy.Time.now(),
-                "mason/torsten/base_link",
-                "mocap_robot"
+                "mocap_torsten",
+                "mason/torsten/base_link"
         )
-        try:
-            self.br.sendTransform(
-                    (self.origin_position[0], self.origin_position[1], self.origin_position[2]),
-                    (0.0, 0.0, 0.0, 1.0),
-                    rospy.Time.now(),
-                    "odom",
-                    "world"
-            )
-        except:
-            pass
 
     def publish_world_base_link_transform(self, pose_msg):
         T_world_child = pose_to_matrix(
@@ -160,7 +152,7 @@ class DTrack3Node:
         )
 
         # Nur aktivieren, falls pose_msg eigentlich child -> world ist:
-        # T_world_child = invert_matrix(T_world_child)
+        T_world_child = invert_matrix(T_world_child)
 
         pos, quat = matrix_to_pose(T_world_child)
 
@@ -168,7 +160,7 @@ class DTrack3Node:
             (pos[0], pos[1], pos[2]),
             (quat[0], quat[1], quat[2], quat[3]),
             rospy.Time.now(),
-            'mason/torsten/base_link',
+            'mocap_torsten',
             'world'
         )
 
@@ -204,7 +196,7 @@ class DTrack3Node:
                     self.odom_path_pub.publish(self.odom_path_msg)
                     self.world_path_pub.publish(self.world_path_msg)
 
-                    self.publish_world_base_link_transform(world_pose)
+                    # self.publish_world_base_link_transform(world_pose)
             except socket.timeout:
                 self.publish_static_transform()
                 continue
