@@ -6,6 +6,7 @@ import re
 import math
 from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import Path
+import tf2_ros
 import tf
 from tf.transformations import quaternion_matrix, quaternion_from_matrix, quaternion_from_euler
 import numpy as np
@@ -34,22 +35,29 @@ class DTrack3Node:
         self.odom_pose_pub = rospy.Publisher('dtrack_odom_pose', PoseStamped, queue_size=10)
         self.odom_path_pub = rospy.Publisher('dtrack_odom_path', Path, queue_size=10)
 
-        self.world_pose_pub = rospy.Publisher('dtrack_world_pose', PoseStamped, queue_size=10)
-        self.world_path_pub = rospy.Publisher('dtrack_world_path', Path, queue_size=10)
+        self.map_pose_pub = rospy.Publisher('dtrack_map_pose', PoseStamped, queue_size=10)
+        self.map_path_pub = rospy.Publisher('dtrack_map_path', Path, queue_size=10)
 
         port = rospy.get_param('~udp_port', 5000)
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.bind(('', port))
         self.sock.settimeout(1.0)
 
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+
         self.br = tf.TransformBroadcaster()
         self.origin_position = None
+        self.origin_quat = None
+        self.T_mocap_torsten_odom = None
+        self.T_map_odom = None
+        self.map_odom = None
 
         self.odom_path_msg = Path()
         self.odom_path_msg.header.frame_id = "odom_mocap"
 
-        self.world_path_msg = Path()
-        self.world_path_msg.header.frame_id = "mocap_torsten"
+        self.map_path_msg = Path()
+        self.map_path_msg.header.frame_id = "mocap_torsten"
 
         self.path_msg_max_len = 500
 
@@ -58,7 +66,7 @@ class DTrack3Node:
     def parse_dtrack_packet(self, packet):
         lines = packet.decode(errors='ignore').splitlines()
         odom_poses = []
-        world_poses = []
+        map_poses = []
         for line in lines:
             line = line.strip()
             if line.startswith('6d '):
@@ -85,6 +93,8 @@ class DTrack3Node:
 
                             if self.origin_position is None:
                                 self.origin_position = (x, y, z)
+                                self.origin_quat = q_current
+                                self.T_map_torsten_origin = pose_to_matrix(self.origin_position, self.origin_quat)
 
                             ox, oy, oz = self.origin_position
                             x_adj = x - ox
@@ -104,44 +114,44 @@ class DTrack3Node:
                             odom_pose.pose.orientation.z = q_current[2]
                             odom_pose.pose.orientation.w = q_current[3]
 
-                            world_pose = PoseStamped()
-                            world_pose.header.stamp = pub_time
-                            world_pose.header.frame_id = "mocap_torsten" # alternativ: mocap oder mocap_world?
-                            world_pose.pose.position.x = x
-                            world_pose.pose.position.y = y
-                            world_pose.pose.position.z = z
-                            world_pose.pose.orientation.x = q_current[0]
-                            world_pose.pose.orientation.y = q_current[1]
-                            world_pose.pose.orientation.z = q_current[2]
-                            world_pose.pose.orientation.w = q_current[3]
+                            map_pose = PoseStamped()
+                            map_pose.header.stamp = pub_time
+                            map_pose.header.frame_id = "mocap_torsten" # alternativ: mocap oder mocap_map?
+                            map_pose.pose.position.x = x
+                            map_pose.pose.position.y = y
+                            map_pose.pose.position.z = z
+                            map_pose.pose.orientation.x = q_current[0]
+                            map_pose.pose.orientation.y = q_current[1]
+                            map_pose.pose.orientation.z = q_current[2]
+                            map_pose.pose.orientation.w = q_current[3]
 
                             odom_poses.append(odom_pose)
-                            world_poses.append(world_pose)
+                            map_poses.append(map_pose)
                 except Exception as e:
                     rospy.logwarn("Failed to parse line: %s with error: %s", line, str(e))
-        return odom_poses, world_poses
+        return odom_poses, map_poses
 
     def publish_static_transform(self):      
-        # self.br.sendTransform(
-        #         (0.0, 0.0, 0.0),
-        #         # (0.0, 0.0, 0.0, 1.0),
-        #         (0.0, 0.0, -1.0, 0.0),
-        #         rospy.Time.now(),
-        #         "odom_mocap",
-        #         "odom"
-        # )  
         self.br.sendTransform(
                 (0.0, 0.0, 0.5),
-                (0.0, 0.0, -1.0, 0.0),
+                (0.0, 0.0, 0.0, 1.0),
                 #(0.84070985, -0.29656136,  0.36817889),
                 #(-0.01578729, -0.69191721,  0.72174453, -0.00928334), #erste Schätzung TODO genauer bestimmen
                 rospy.Time.now(),
                 "mocap_torsten",
                 "mason/torsten/base_link"
         )
+        if self.map_odom is not None:
+            self.br.sendTransform(
+                (self.map_odom[0][0], self.map_odom[0][1], self.map_odom[0][2]),
+                (self.map_odom[1][0], self.map_odom[1][1], self.map_odom[1][2], self.map_odom[1][3]),
+                rospy.Time.now(),
+                "odom",
+                "map"
+            )  
 
-    def publish_world_base_link_transform(self, pose_msg):
-        T_world_child = pose_to_matrix(
+    def publish_map_base_link_transform(self, pose_msg):
+        T_map_child = pose_to_matrix(
             [pose_msg.pose.position.x,
             pose_msg.pose.position.y,
             pose_msg.pose.position.z],
@@ -151,17 +161,17 @@ class DTrack3Node:
             pose_msg.pose.orientation.w]
         )
 
-        # Nur aktivieren, falls pose_msg eigentlich child -> world ist:
-        T_world_child = invert_matrix(T_world_child)
+        # Nur aktivieren, falls pose_msg eigentlich child -> map ist:
+        T_map_child = invert_matrix(T_map_child)
 
-        pos, quat = matrix_to_pose(T_world_child)
+        pos, quat = matrix_to_pose(T_map_child)
 
         self.br.sendTransform(
             (pos[0], pos[1], pos[2]),
             (quat[0], quat[1], quat[2], quat[3]),
             rospy.Time.now(),
             'mocap_torsten',
-            'world'
+            'map'
         )
 
     def run(self):
@@ -170,33 +180,59 @@ class DTrack3Node:
             self.publish_static_transform()
             try:
                 data, _ = self.sock.recvfrom(4096)
-                odom_poses, world_poses = self.parse_dtrack_packet(data)
+                odom_poses, map_poses = self.parse_dtrack_packet(data)
                 for index, _ in enumerate(odom_poses):
                     
                     odom_pose = odom_poses[index]
-                    world_pose = world_poses[index]
+                    map_pose = map_poses[index]
                     
                     
                     self.odom_pose_pub.publish(odom_pose)
-                    self.world_pose_pub.publish(world_pose)
+                    self.map_pose_pub.publish(map_pose)
 
                     # Update path
                     time_now = rospy.Time.now()
                     self.odom_path_msg.header.stamp = time_now
                     self.odom_path_msg.poses.append(odom_pose)
                     
-                    self.world_path_msg.header.stamp = time_now
-                    self.world_path_msg.poses.append(world_pose)
+                    self.map_path_msg.header.stamp = time_now
+                    self.map_path_msg.poses.append(map_pose)
 
                     if len(self.odom_path_msg.poses) > self.path_msg_max_len:
                         self.odom_path_msg.poses.pop(0)
-                    elif len(self.world_path_msg.poses) > self.path_msg_max_len:
-                        self.world_path_msg.poses.pop(0)
+                    elif len(self.map_path_msg.poses) > self.path_msg_max_len:
+                        self.map_path_msg.poses.pop(0)
 
                     self.odom_path_pub.publish(self.odom_path_msg)
-                    self.world_path_pub.publish(self.world_path_msg)
+                    self.map_path_pub.publish(self.map_path_msg)
 
-                    # self.publish_world_base_link_transform(world_pose)
+                    # self.publish_map_base_link_transform(map_pose)
+                    if self.T_mocap_torsten_odom is None:
+                        try:
+                            tf_msg = self.tf_buffer.lookup_transform(
+                                        "mocap_torsten",
+                                        "odom",
+                                        rospy.Time(0),
+                                        rospy.Duration(0.1),
+                                    )
+                            rospy.loginfo(f"tf_msg:\n{tf_msg}")
+                            tf_pos = (tf_msg.transform.translation.x, tf_msg.transform.translation.y, tf_msg.transform.translation.z)
+                            tf_quat = (tf_msg.transform.rotation.x, tf_msg.transform.rotation.y, tf_msg.transform.rotation.z, tf_msg.transform.rotation.w)
+                            self.T_mocap_torsten_odom = pose_to_matrix(position=tf_pos, quaternion=tf_quat)
+                            self.T_map_odom = np.dot(self.T_map_torsten_origin, self.T_mocap_torsten_odom)
+                            self.map_odom = matrix_to_pose(self.T_map_odom)
+                            rospy.loginfo(f"odom im map frame:\n{self.T_map_odom}")
+                        except (
+                            tf2_ros.LookupException,
+                            tf2_ros.ConnectivityException,
+                            tf2_ros.ExtrapolationException,
+                        ) as e:
+                            rospy.logwarn_throttle(
+                                2.0,
+                                "Pose transform failed: %s -> %s (%s)" % (
+                                    "odom", "mocap_torsten", str(e)
+                                )
+                            )
             except socket.timeout:
                 self.publish_static_transform()
                 continue
