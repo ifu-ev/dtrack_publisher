@@ -133,8 +133,8 @@ class DTrack3Node:
 
     def publish_static_transform(self):      
         self.br.sendTransform(
-                (0.0, 0.0, 0.5),
-                (0.0, 0.0, 0.0, 1.0),
+                (-0.708746, -0.121984, 0.82868),
+                (0.0, 0.0, 1.0, 0.0),
                 #(0.84070985, -0.29656136,  0.36817889),
                 #(-0.01578729, -0.69191721,  0.72174453, -0.00928334), #erste Schätzung TODO genauer bestimmen
                 rospy.Time.now(),
