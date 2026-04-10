@@ -1,0 +1,9 @@
+<launch>
+  <!-- Setze den robot_description Parameter -->
+  <param name="robot_description" command="xacro $(find mason_description)/urdf/mason_simple.urdf" />
+
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find dtrack_publisher)/rviz/replay.rviz" />
+  
+  <!-- Starte rosbag Playback -->
+  <node name="rosbag_player" pkg="rosbag" type="play" args="/home/kevin/kalimoro_ws/src/Data/ros_bags/cube_recording_2026-04-10_21-18-11.bag" />
+</launch>
