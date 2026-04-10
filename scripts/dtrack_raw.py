@@ -57,17 +57,18 @@ class DTrack3Node:
 
     def parse_dtrack_packet(self, packet):
         lines = packet.decode(errors='ignore').splitlines()
-        return lines
-        # odom_poses = []
-        # world_poses = []
-        # for line in lines:
-        #     line = line.strip()
-        #     if line.startswith('6d '):
-        #         try:
-        #             parts = line.split(' ', 2)
-        #             body_id = int(parts[1])
-        #             rest = parts[2]
-        #             groups = re.findall(r'\[([^\]]+)\]', rest)
+        # return lines
+        odom_poses = []
+        world_poses = []
+        for line in lines:
+            line = line.strip()
+            if line.startswith('6d '):
+                try:
+                    parts = line.split(' ', 2)
+                    body_id = int(parts[1])
+                    rest = parts[2]
+                    groups = re.findall(r'\[([^\]]+)\]', rest)
+                    return parts, body_id, rest, groups
 
         #             if len(groups) >= 2:
         #                 pos_euler = groups[1].split()
@@ -118,8 +119,9 @@ class DTrack3Node:
 
         #                     odom_poses.append(odom_pose)
         #                     world_poses.append(world_pose)
-        #         except Exception as e:
-        #             rospy.logwarn("Failed to parse line: %s with error: %s", line, str(e))
+                except Exception as e:
+                    rospy.logwarn("Failed to parse line: %s with error: %s", line, str(e))
+                    return None, None, None, None
         # return odom_poses, world_poses
 
     def publish_static_transform(self):      
@@ -177,7 +179,11 @@ class DTrack3Node:
         rate = rospy.Rate(100)
         while not rospy.is_shutdown():
             data, _ = self.sock.recvfrom(4096)
-            print(f"lines: \n{self.parse_dtrack_packet(data)}")
+            parts, body_id, rest, groups = self.parse_dtrack_packet(data)
+            print(f"parts:\n{parts}")
+            print(f"body_id:\n{body_id}")
+            print(f"rest:\n{rest}")
+            print(f"groups:\n{groups}")
             # self.publish_static_transform()
             # try:
             #     data, _ = self.sock.recvfrom(4096)
