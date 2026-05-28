@@ -27,7 +27,7 @@ class DataLogger:
         self.files = {
             "imu": open(os.path.join(data_dir, "imu_data.csv"), 'w', newline=''),
             "odom": open(os.path.join(data_dir, "odom_data.csv"), 'w', newline=''),
-            "dtrack": open(os.path.join(data_dir, "dtrack_pose.csv"), 'w', newline=''),
+            "dtrack": open(os.path.join(data_dir, "map_torsten_pose.csv"), 'w', newline=''),
         }
         self.writers = {k: csv.writer(f) for k, f in self.files.items()}
 
@@ -56,7 +56,7 @@ class DataLogger:
         # Subscribers
         rospy.Subscriber("/imu/data", Imu, self.imu_callback)
         rospy.Subscriber("/odom", Odometry, self.odom_callback)
-        rospy.Subscriber("/dtrack_pose", PoseStamped, self.dtrack_callback)
+        rospy.Subscriber("/map_torsten_pose", PoseStamped, self.dtrack_callback)
 
         # IMPORTANT: Give time for subscribers to connect before spinning
         rospy.sleep(0.5) # Added a small delay here
@@ -139,7 +139,7 @@ class DataLogger:
             self.writers["dtrack"].writerow([
                 t, p.x, p.y, p.z, q.x, q.y, q.z, q.w, yaw
             ])
-            self.bag.write("/dtrack_pose", msg, msg.header.stamp)
+            self.bag.write("/map_torsten_pose", msg, msg.header.stamp)
             self.counts["dtrack"] += 1
 
             if self.counts["dtrack"] % 50 == 0:
