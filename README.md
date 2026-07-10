@@ -19,9 +19,7 @@ cd ~/art-tracking/ART-DTrack3/Software/LINUX/DTRACK3_v3.3.1_linux64/DTRACK3_v3.3
 Build and source the workspace:
 
 ```bash
-cd ~/Projects/KaliMoRo/kalimoro_ws
 catkin build dtrack_publisher
-source devel/setup.bash
 ```
 
 Start the C++ node:
@@ -38,13 +36,7 @@ List the available DTrack topics:
 rostopic list | grep dtrack
 ```
 
-Each DTrack body gets its own pose and path topics. Topic IDs are one-based, while DTrack's raw body IDs are zero-based:
-
-```text
-raw DTrack body ID 0 -> /dtrack/body_1/pose and /dtrack/body_1/path
-raw DTrack body ID 1 -> /dtrack/body_2/pose and /dtrack/body_2/path
-raw DTrack body ID N -> /dtrack/body_<N+1>/pose and /dtrack/body_<N+1>/path
-```
+Each DTrack body gets its own pose and path topics.
 
 Use the body ID shown by `rostopic list`:
 
