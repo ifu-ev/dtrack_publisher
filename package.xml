@@ -1,27 +1,33 @@
 <?xml version="1.0"?>
-<package format="2">
+<package format="3">
   <name>dtrack_publisher</name>
-  <version>0.0.1</version>
-  <description>Publishes pose data from DTrack3 over UDP and builds a visual path</description>
+  <version>0.1.0</version>
+  <description>Publishes multi-body pose and path data received from DTrack3 over UDP.</description>
 
-  <maintainer email="krininger.matthew@gmail.com">Matthew Krininger</maintainer>
+  <maintainer email="david.schnermann@ifu.rwth-aachen.de">David Schnermann</maintainer>
   <license>MIT</license>
 
-  <!-- Required build tools -->
-  <buildtool_depend>catkin</buildtool_depend>
+  <buildtool_depend>ament_cmake</buildtool_depend>
 
-  <!-- Runtime and build-time dependencies -->
-  <depend>roscpp</depend>
-  <depend>rospy</depend>
-  <depend>std_msgs</depend>
+  <depend>rclcpp</depend>
   <depend>geometry_msgs</depend>
   <depend>nav_msgs</depend>
-  <depend>tf</depend>
   <depend>tf2</depend>
   <depend>tf2_geometry_msgs</depend>
   <depend>tf2_ros</depend>
 
-  <!-- Export -->
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>ros2launch</exec_depend>
+
+  <test_depend>ament_cmake_gtest</test_depend>
+  <test_depend>launch_testing_ament_cmake</test_depend>
+  <test_depend>launch_testing_ros</test_depend>
+  <test_depend>python3-pytest</test_depend>
+  <test_depend>rclpy</test_depend>
+  <test_depend>tf2_msgs</test_depend>
+
   <export>
+    <build_type>ament_cmake</build_type>
   </export>
 </package>

@@ -1,5 +1,0 @@
-<launch>
- 
-  <node pkg="dtrack_publisher" type="data_logger_node.py" name="data_logger" output="screen" />
-  
-</launch>

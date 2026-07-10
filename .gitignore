@@ -1,9 +1,7 @@
-# === ROS / Catkin ===
+# === ROS 2 / colcon ===
 build/
-devel/
 install/
 log/
-*.catkin_workspace
 
 # === CMake ===
 CMakeCache.txt

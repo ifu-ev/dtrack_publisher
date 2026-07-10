@@ -1,4 +1,0 @@
-<launch>
-  <node pkg="dtrack_publisher" type="dtrack_node.py" name="dtrack_publisher" output="screen" />
-  <node pkg="dtrack_publisher" type="pose_to_path.py" name="path_builder" />
-</launch>
