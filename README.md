@@ -2,41 +2,56 @@
 
 This package publishes pose and path data received from a DTrack motion-capture system.
 
-## Multi-body C++ node
+## Start DTrack
 
-Start the multi-body publisher with:
+- connect the DTrack controller to your desktop computer via ethernet
+- set your ethernet IPv4 to the static IP `192.168.1.2`
+- start the DTrack controller
+- start the DTrack software:
+
+```bash
+cd ~/art-tracking/ART-DTrack3/Software/LINUX/DTRACK3_v3.3.1_linux64/DTRACK3_v3.3.1/bin
+./DTRACK3.bin
+```
+
+## Start the C++ multi-body node
+
+Build and source the workspace:
+
+```bash
+cd ~/Projects/KaliMoRo/kalimoro_ws
+catkin build dtrack_publisher
+source devel/setup.bash
+```
+
+Start the C++ node:
 
 ```bash
 roslaunch dtrack_publisher dtrack_multi_body.launch
 ```
 
-Each DTrack body gets its own pose and path topics. Topic IDs are one-based, while
-DTrack's raw body IDs are zero-based:
+## Listen to the topics
 
-- raw DTrack body ID `0`: `/dtrack/body_1/pose` and `/dtrack/body_1/path`
-- raw DTrack body ID `1`: `/dtrack/body_2/pose` and `/dtrack/body_2/path`
+List the available DTrack topics:
 
-Positions are converted from millimetres to metres and remain relative to the
-calibrated DTrack coordinate-system origin. The first received measurement does
-not redefine the origin.
+```bash
+rostopic list | grep dtrack
+```
 
-The legacy Python node publishes `/dtrack_pose` and `/dtrack_path`.
+Each DTrack body gets its own pose and path topics. Topic IDs are one-based, while DTrack's raw body IDs are zero-based:
 
-- To get the data first you need to start the DTRACK-Motion-Capute-System
-  - first connect the DTRACK-Controller to your desktop computer via ethernet
-  - set your ethernet-ipv4 to the static ip: 192.168.1.2
-  - start the power switch of the DTRACK controller
-  - then start the DTRACK software
-    - copy the software from the USB-stick in your home folder
-    - `cd ~/art-tracking/ART-DTrack3/Software/LINUX/DTRACK3_v3.3.1_linux64/DTRACK3_v3.3.1/bin`
-    - `./DTRACK3.bin`
-    - hopefully you have valid licence
-- if you used the setup.sh skript in kalimoro_ws you should already have the dtrack_publisher package in your lokal workspace and already sourced it.
-- start the launchfile: `roslaunch dtrack_publisher dtrack_with_odom.launch`
-- check topics: `rostopic echo /odom`, `rostopic echo /imu`, `rostopic echo /dtrack_pose`
-- Record data
-  - start the record: `roslaunch dtrack_publisher record.launch`
-  - move the robot
-  - stop the record: Ctrl + C
-  - the data is saved as combined_data.bag in the Data folder.
-- you can you this for optimizing the localization ekf in the ekf_tuning_package 
+```text
+raw DTrack body ID 0 -> /dtrack/body_1/pose and /dtrack/body_1/path
+raw DTrack body ID 1 -> /dtrack/body_2/pose and /dtrack/body_2/path
+raw DTrack body ID N -> /dtrack/body_<N+1>/pose and /dtrack/body_<N+1>/path
+```
+
+Use the body ID shown by `rostopic list`:
+
+```bash
+rostopic echo /dtrack/body_<id>/pose
+rostopic echo /dtrack/body_<id>/path
+rostopic hz /dtrack/body_<id>/pose
+```
+
+Positions are converted from millimetres to metres and stay in the calibrated DTrack coordinate-system origin. Orientation is computed from the DTrack rotation matrix.
