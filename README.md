@@ -1,6 +1,26 @@
 # dtrack_publisher
 
-This package utilizes the pose and path of the detected objects and publishes it to the ros-topics `/dtrack_pose` and `/dtrack_path`.
+This package publishes pose and path data received from a DTrack motion-capture system.
+
+## Multi-body C++ node
+
+Start the multi-body publisher with:
+
+```bash
+roslaunch dtrack_publisher dtrack_multi_body.launch
+```
+
+Each DTrack body gets its own pose and path topics. Topic IDs are one-based, while
+DTrack's raw body IDs are zero-based:
+
+- raw DTrack body ID `0`: `/dtrack/body_1/pose` and `/dtrack/body_1/path`
+- raw DTrack body ID `1`: `/dtrack/body_2/pose` and `/dtrack/body_2/path`
+
+Positions are converted from millimetres to metres and remain relative to the
+calibrated DTrack coordinate-system origin. The first received measurement does
+not redefine the origin.
+
+The legacy Python node publishes `/dtrack_pose` and `/dtrack_path`.
 
 - To get the data first you need to start the DTRACK-Motion-Capute-System
   - first connect the DTRACK-Controller to your desktop computer via ethernet

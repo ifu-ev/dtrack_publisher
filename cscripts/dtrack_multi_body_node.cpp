@@ -248,7 +248,7 @@ private:
 
       ParsedPose parsed_pose;
       parsed_pose.body_id = body_id;
-      parsed_pose.pose = makePose(body_id, raw_x, raw_y, raw_z, rotation_values);
+      parsed_pose.pose = makePose(raw_x, raw_y, raw_z, rotation_values);
       poses.push_back(parsed_pose);
     }
   }
@@ -267,22 +267,12 @@ private:
     return true;
   }
 
-  geometry_msgs::PoseStamped makePose(int body_id, double raw_x, double raw_y, double raw_z,
-                                      const RotationValues& rotation_values)
+  geometry_msgs::PoseStamped makePose(double raw_x, double raw_y, double raw_z,
+                                      const RotationValues& rotation_values) const
   {
     const double x = raw_x / 1000.0;
     const double y = raw_y / 1000.0;
     const double z = raw_z / 1000.0;
-
-    if (!origin_initialized_)
-    {
-      origin_x_ = x;
-      origin_y_ = y;
-      origin_z_ = z;
-      origin_initialized_ = true;
-      ROS_INFO("DTrack global origin initialized from body %d at %.6f %.6f %.6f",
-               body_id, origin_x_, origin_y_, origin_z_);
-    }
 
     tf2::Matrix3x3 rotation;
     rotation.setValue(rotation_values[0], rotation_values[3], rotation_values[6],
@@ -296,9 +286,9 @@ private:
     geometry_msgs::PoseStamped pose;
     pose.header.stamp = ros::Time::now();
     pose.header.frame_id = frame_id_;
-    pose.pose.position.x = x - origin_x_;
-    pose.pose.position.y = y - origin_y_;
-    pose.pose.position.z = z - origin_z_;
+    pose.pose.position.x = x;
+    pose.pose.position.y = y;
+    pose.pose.position.z = z;
     pose.pose.orientation = tf2::toMsg(quaternion);
 
     return pose;
@@ -328,12 +318,13 @@ private:
     }
 
     BodyState body_state;
-    const std::string body_namespace = "/dtrack/body_" + std::to_string(body_id);
+    const int topic_body_id = body_id + 1;
+    const std::string body_namespace = "/dtrack/body_" + std::to_string(topic_body_id);
     body_state.pose_pub = nh_.advertise<geometry_msgs::PoseStamped>(body_namespace + "/pose", 10);
     body_state.path_pub = nh_.advertise<nav_msgs::Path>(body_namespace + "/path", 10);
     body_state.path.header.frame_id = frame_id_;
 
-    ROS_INFO("Created DTrack publishers for body %d", body_id);
+    ROS_INFO("Created DTrack publishers for raw body %d under body_%d", body_id, topic_body_id);
     return bodies_.emplace(body_id, body_state).first->second;
   }
 
@@ -362,11 +353,6 @@ private:
   int socket_fd_ = -1;
   std::string frame_id_ = "odom_mocap";
   std::string parent_frame_ = "odom";
-
-  bool origin_initialized_ = false;
-  double origin_x_ = 0.0;
-  double origin_y_ = 0.0;
-  double origin_z_ = 0.0;
 
   std::unordered_map<int, BodyState> bodies_;
 };
