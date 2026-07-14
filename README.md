@@ -31,6 +31,8 @@ Start the C++ node:
 roslaunch dtrack_publisher dtrack_multi_body.launch
 ```
 
+Set the UDP port and maximum path length in `config/dtrack_multi_body.yaml`.
+
 ## Listen to the topics
 
 List the available DTrack topics:

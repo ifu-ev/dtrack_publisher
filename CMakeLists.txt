@@ -30,6 +30,10 @@ install(TARGETS dtrack_multi_body_node
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
+install(DIRECTORY config launch
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+)
+
 # Install Python scripts
 catkin_install_python(PROGRAMS
   scripts/dtrack_node.py

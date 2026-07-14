@@ -1,8 +1,7 @@
 <launch>
   <node pkg="dtrack_publisher" type="dtrack_multi_body_node" name="dtrack_multi_body_node" output="screen">
-    <param name="udp_port" value="5000" />
+    <rosparam command="load" file="$(find dtrack_publisher)/config/dtrack_multi_body.yaml" />
     <param name="frame_id" value="odom_mocap" />
     <param name="parent_frame" value="odom" />
-    <param name="max_path_length" value="500" />
   </node>
 </launch>

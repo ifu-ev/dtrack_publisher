@@ -10,6 +10,7 @@
 #include <cstring>
 #include <regex>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -64,10 +65,16 @@ class DTrackMultiBodyNode
 public:
   DTrackMultiBodyNode() : private_nh_("~")
   {
-    private_nh_.param("udp_port", udp_port_, 5000);
+    if (!private_nh_.getParam("udp_port", udp_port_))
+    {
+      throw std::runtime_error("Missing required parameter: ~udp_port");
+    }
     private_nh_.param<std::string>("frame_id", frame_id_, "odom_mocap");
     private_nh_.param<std::string>("parent_frame", parent_frame_, "odom");
-    private_nh_.param("max_path_length", max_path_length_, 500);
+    if (!private_nh_.getParam("max_path_length", max_path_length_))
+    {
+      throw std::runtime_error("Missing required parameter: ~max_path_length");
+    }
     if (max_path_length_ < 1)
     {
       ROS_WARN("Invalid max_path_length %d, using 1 instead", max_path_length_);
@@ -348,8 +355,8 @@ private:
   ros::NodeHandle private_nh_;
   tf2_ros::TransformBroadcaster tf_broadcaster_;
 
-  int udp_port_ = 5000;
-  int max_path_length_ = 500;
+  int udp_port_ = 0;
+  int max_path_length_ = 0;
   int socket_fd_ = -1;
   std::string frame_id_ = "odom_mocap";
   std::string parent_frame_ = "odom";
@@ -361,8 +368,16 @@ int main(int argc, char** argv)
 {
   ros::init(argc, argv, "dtrack_multi_body_node");
 
-  DTrackMultiBodyNode node;
-  node.run();
+  try
+  {
+    DTrackMultiBodyNode node;
+    node.run();
+  }
+  catch (const std::exception& error)
+  {
+    ROS_FATAL("%s", error.what());
+    return 1;
+  }
 
   return 0;
 }
