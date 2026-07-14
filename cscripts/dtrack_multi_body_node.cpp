@@ -28,10 +28,10 @@ public:
   explicit DTrackMultiBodyNode(
       const rclcpp::NodeOptions &options = rclcpp::NodeOptions())
       : Node("dtrack_multi_body_node", options) {
-    udp_port_ = declare_parameter<int>("udp_port", 5000);
+    udp_port_ = declare_parameter<int>("udp_port");
     frame_id_ = declare_parameter<std::string>("frame_id", "odom_mocap");
     parent_frame_ = declare_parameter<std::string>("parent_frame", "odom");
-    max_path_length_ = declare_parameter<int>("max_path_length", 500);
+    max_path_length_ = declare_parameter<int>("max_path_length");
     if (max_path_length_ < 1) {
       RCLCPP_WARN(get_logger(), "Invalid max_path_length %d, using 1 instead",
                   max_path_length_);
@@ -184,8 +184,8 @@ private:
     tf_broadcaster_->sendTransform(transform);
   }
 
-  int udp_port_ = 5000;
-  int max_path_length_ = 500;
+  int udp_port_ = 0;
+  int max_path_length_ = 0;
   int socket_fd_ = -1;
   std::string frame_id_ = "odom_mocap";
   std::string parent_frame_ = "odom";

@@ -48,7 +48,7 @@ install(TARGETS dtrack_multi_body_node
   DESTINATION lib/${PROJECT_NAME}
 )
 
-install(DIRECTORY launch
+install(DIRECTORY config launch
   DESTINATION share/${PROJECT_NAME}
   PATTERN "__pycache__" EXCLUDE
 )
