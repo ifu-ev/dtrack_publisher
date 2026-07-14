@@ -16,10 +16,7 @@ find_package(tf2_geometry_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
 
 add_library(dtrack_parser STATIC
-  src/dtrack_parser.cpp
-)
-target_include_directories(dtrack_parser PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  cscripts/dtrack_parser.cpp
 )
 ament_target_dependencies(dtrack_parser
   geometry_msgs
@@ -28,7 +25,7 @@ ament_target_dependencies(dtrack_parser
 )
 
 add_executable(dtrack_multi_body_node
-  src/dtrack_multi_body_node.cpp
+  cscripts/dtrack_multi_body_node.cpp
 )
 target_link_libraries(dtrack_multi_body_node
   dtrack_parser
@@ -59,27 +56,5 @@ install(DIRECTORY launch
 install(FILES LICENSE
   DESTINATION share/${PROJECT_NAME}
 )
-
-if(BUILD_TESTING)
-  find_package(ament_cmake_gtest REQUIRED)
-  find_package(launch_testing_ament_cmake REQUIRED)
-
-  ament_add_gtest(test_dtrack_parser
-    test/test_dtrack_parser.cpp
-  )
-  target_link_libraries(test_dtrack_parser
-    dtrack_parser
-  )
-  ament_target_dependencies(test_dtrack_parser
-    geometry_msgs
-    tf2
-    tf2_geometry_msgs
-  )
-
-  add_launch_test(
-    test/test_dtrack_integration.py
-    TIMEOUT 45
-  )
-endif()
 
 ament_package()

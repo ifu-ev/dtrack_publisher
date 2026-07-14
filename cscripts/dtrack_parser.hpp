@@ -1,5 +1,5 @@
-#ifndef DTRACK_PUBLISHER__DTRACK_PARSER_HPP_
-#define DTRACK_PUBLISHER__DTRACK_PARSER_HPP_
+#ifndef DTRACK_PARSER_HPP_
+#define DTRACK_PARSER_HPP_
 
 #include <array>
 #include <string>
@@ -34,4 +34,4 @@ std::string body_topic_namespace(int raw_body_id);
 
 } // namespace dtrack_publisher
 
-#endif // DTRACK_PUBLISHER__DTRACK_PARSER_HPP_
+#endif // DTRACK_PARSER_HPP_
