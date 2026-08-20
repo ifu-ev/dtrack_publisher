@@ -25,6 +25,7 @@ ament_target_dependencies(dtrack_parser
 )
 
 add_executable(dtrack_multi_body_node
+  cscripts/dtrack_multi_body_main.cpp
   cscripts/dtrack_multi_body_node.cpp
 )
 target_link_libraries(dtrack_multi_body_node

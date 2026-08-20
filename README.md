@@ -32,7 +32,8 @@ Start the C++ node:
 ros2 launch dtrack_publisher dtrack_multi_body.launch.py
 ```
 
-Set the UDP port and maximum path length in `config/dtrack_multi_body.yaml`.
+Set the UDP port, frame names and maximum path length in
+`config/dtrack_multi_body.yaml`.
 
 ## Listen to the topics
 
