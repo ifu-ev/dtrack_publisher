@@ -8,6 +8,7 @@ This ROS 2 package publishes pose and path data received from a DTrack motion-ca
 - connect the DTrack controller to your desktop computer via ethernet
 - set your ethernet IPv4 to the static IP `192.168.1.2`
 - start the DTrack controller
+- synchronize the DTrack controller with the NTP server and enable the `ts` timestamp in the DTrack output settings
 - start the DTrack software:
 
 ```bash
@@ -59,9 +60,11 @@ Positions are converted from millimetres to metres and stay in the calibrated DT
 
 The pose topic uses `geometry_msgs/msg/PoseStamped`:
 
-- `header.stamp`: ROS timestamp of the received pose
+- `header.stamp`: DTrack measurement timestamp from the `ts` line in the UDP packet, or local reception time if `ts` is unavailable
 - `header.frame_id`: `odom_mocap`
 - `pose.position`: x, y and z position in metres
 - `pose.orientation`: orientation as a normalized quaternion in x, y, z, w order
 
-The path topic uses `nav_msgs/msg/Path`. Its `header.frame_id` is also `odom_mocap`, and its `poses` array contains the latest `geometry_msgs/msg/PoseStamped` messages in chronological order. By default, the path contains up to 500 poses.
+The DTrack timestamp contains seconds since 00:00 UTC and resets at midnight. The node combines it with the UTC date of the NTP-synchronized computer and handles packets received around midnight by choosing the closest date. If a packet has no valid `ts` line, the node logs a throttled warning and falls back to the local reception time.
+
+The path topic uses `nav_msgs/msg/Path`. Its `header.frame_id` is also `odom_mocap`, and its `header.stamp` and contained `geometry_msgs/msg/PoseStamped` messages use the selected DTrack or fallback reception timestamp. Its `poses` array contains the latest poses in chronological order. By default, the path contains up to 500 poses.

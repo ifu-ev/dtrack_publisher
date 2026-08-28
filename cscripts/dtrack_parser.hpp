@@ -42,6 +42,8 @@
 #define DTRACK_PARSER_HPP_
 
 #include <array>
+#include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -59,11 +61,16 @@ struct ParsedBody {
 };
 
 struct ParseResult {
+  std::optional<double> timestamp_seconds_since_midnight;
   std::vector<ParsedBody> bodies;
   std::vector<std::string> warnings;
 };
 
 ParseResult parse_packet(const std::string &packet);
+
+std::int64_t dtrack_timestamp_nanoseconds_since_epoch(
+    double seconds_since_midnight,
+    std::int64_t reference_time_nanoseconds_since_epoch);
 
 std::array<double, 3> position_metres(const ParsedBody &body);
 

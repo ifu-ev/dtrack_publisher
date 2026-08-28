@@ -41,8 +41,11 @@
 #include "dtrack_parser.hpp"
 
 #include <algorithm>
+#include <cmath>
+#include <cstdint>
 #include <regex>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -52,6 +55,10 @@
 
 namespace dtrack_publisher {
 namespace {
+
+constexpr double kSecondsPerDay = 86400.0;
+constexpr std::int64_t kNanosecondsPerSecond = 1000000000LL;
+constexpr std::int64_t kNanosecondsPerDay = 86400LL * kNanosecondsPerSecond;
 
 std::string trim(const std::string &input) {
   constexpr char whitespace[] = " \t\r\n";
@@ -68,7 +75,35 @@ bool starts_with(const std::string &input, const std::string &prefix) {
   return input.compare(0, prefix.size(), prefix) == 0;
 }
 
+void parse_timestamp_line(const std::string &line, ParseResult &result) {
+  std::istringstream timestamp_stream(line);
+  std::string tag;
+  std::string trailing_value;
+  double seconds_since_midnight = 0.0;
+
+  if (!(timestamp_stream >> tag >> seconds_since_midnight) ||
+      (timestamp_stream >> trailing_value) ||
+      !std::isfinite(seconds_since_midnight) || seconds_since_midnight < 0.0 ||
+      seconds_since_midnight >= kSecondsPerDay) {
+    result.warnings.push_back("Invalid DTrack timestamp line: " + line);
+    return;
+  }
+
+  if (result.timestamp_seconds_since_midnight.has_value()) {
+    result.warnings.push_back("Ignoring duplicate DTrack timestamp line: " +
+                              line);
+    return;
+  }
+
+  result.timestamp_seconds_since_midnight = seconds_since_midnight;
+}
+
 void parse_line(const std::string &line, ParseResult &result) {
+  if (starts_with(line, "ts ")) {
+    parse_timestamp_line(line, result);
+    return;
+  }
+
   if (!starts_with(line, "6d ")) {
     return;
   }
@@ -158,6 +193,34 @@ ParseResult parse_packet(const std::string &packet) {
     parse_line(trim(line), result);
   }
   return result;
+}
+
+std::int64_t dtrack_timestamp_nanoseconds_since_epoch(
+    double seconds_since_midnight,
+    std::int64_t reference_time_nanoseconds_since_epoch) {
+  if (!std::isfinite(seconds_since_midnight) || seconds_since_midnight < 0.0 ||
+      seconds_since_midnight >= kSecondsPerDay) {
+    throw std::invalid_argument(
+        "DTrack timestamp must be in the range [0, 86400) seconds");
+  }
+
+  const std::int64_t timestamp_nanoseconds = static_cast<std::int64_t>(
+      std::llround(seconds_since_midnight * kNanosecondsPerSecond));
+  const std::int64_t current_utc_midnight =
+      reference_time_nanoseconds_since_epoch -
+      (reference_time_nanoseconds_since_epoch % kNanosecondsPerDay);
+  std::int64_t candidate = current_utc_midnight + timestamp_nanoseconds;
+
+  // Around UTC midnight, select the date closest to packet reception.
+  if (candidate - reference_time_nanoseconds_since_epoch >
+      kNanosecondsPerDay / 2) {
+    candidate -= kNanosecondsPerDay;
+  } else if (reference_time_nanoseconds_since_epoch - candidate >
+             kNanosecondsPerDay / 2) {
+    candidate += kNanosecondsPerDay;
+  }
+
+  return candidate;
 }
 
 std::array<double, 3> position_metres(const ParsedBody &body) {

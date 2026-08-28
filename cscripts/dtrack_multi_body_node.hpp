@@ -70,10 +70,11 @@ private:
   };
 
   void open_socket();
-  geometry_msgs::msg::PoseStamped make_pose(const ParsedBody &body);
-  void publish_pose(const ParsedBody &body);
+  geometry_msgs::msg::PoseStamped make_pose(const ParsedBody &body,
+                                            const rclcpp::Time &stamp);
+  void publish_pose(const ParsedBody &body, const rclcpp::Time &stamp);
   BodyState &get_body_state(int body_id);
-  void publish_identity_transform();
+  void publish_identity_transform(const rclcpp::Time &stamp);
 
   int udp_port_ = 0;
   int max_path_length_ = 0;

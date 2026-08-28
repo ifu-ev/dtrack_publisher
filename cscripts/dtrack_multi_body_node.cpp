@@ -46,6 +46,7 @@
 #include <unistd.h>
 
 #include <array>
+#include <chrono>
 #include <cstdint>
 #include <cstring>
 #include <stdexcept>
@@ -94,9 +95,13 @@ void DTrackMultiBodyNode::receive_and_publish() {
                            "Failed to receive DTrack UDP packet: %s",
                            std::strerror(errno));
     }
-    publish_identity_transform();
     return;
   }
+
+  const std::int64_t reception_time_nanoseconds =
+      std::chrono::duration_cast<std::chrono::nanoseconds>(
+          std::chrono::system_clock::now().time_since_epoch())
+          .count();
 
   const std::string packet(receive_buffer_.data(),
                            static_cast<std::size_t>(received));
@@ -105,11 +110,24 @@ void DTrackMultiBodyNode::receive_and_publish() {
     RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 1000, "%s",
                          warning.c_str());
   }
+  std::int64_t measurement_time_nanoseconds = reception_time_nanoseconds;
+  if (result.timestamp_seconds_since_midnight.has_value()) {
+    measurement_time_nanoseconds = dtrack_timestamp_nanoseconds_since_epoch(
+        *result.timestamp_seconds_since_midnight, reception_time_nanoseconds);
+  } else {
+    RCLCPP_WARN_THROTTLE(
+        get_logger(), *get_clock(), 1000,
+        "DTrack packet has no valid ts timestamp; falling back to local "
+        "reception time");
+  }
+  const rclcpp::Time measurement_time(measurement_time_nanoseconds,
+                                      RCL_SYSTEM_TIME);
+
   for (const ParsedBody &body : result.bodies) {
-    publish_pose(body);
+    publish_pose(body, measurement_time);
   }
 
-  publish_identity_transform();
+  publish_identity_transform(measurement_time);
 }
 
 DTrackMultiBodyNode::BodyState &
@@ -173,9 +191,10 @@ void DTrackMultiBodyNode::open_socket() {
 }
 
 geometry_msgs::msg::PoseStamped
-DTrackMultiBodyNode::make_pose(const ParsedBody &body) {
+DTrackMultiBodyNode::make_pose(const ParsedBody &body,
+                               const rclcpp::Time &stamp) {
   geometry_msgs::msg::PoseStamped pose;
-  pose.header.stamp = now();
+  pose.header.stamp = stamp;
   pose.header.frame_id = frame_id_;
 
   const std::array<double, 3> position = position_metres(body);
@@ -186,12 +205,13 @@ DTrackMultiBodyNode::make_pose(const ParsedBody &body) {
   return pose;
 }
 
-void DTrackMultiBodyNode::publish_pose(const ParsedBody &body) {
+void DTrackMultiBodyNode::publish_pose(const ParsedBody &body,
+                                       const rclcpp::Time &stamp) {
   BodyState &body_state = get_body_state(body.body_id);
-  const geometry_msgs::msg::PoseStamped pose = make_pose(body);
+  const geometry_msgs::msg::PoseStamped pose = make_pose(body, stamp);
   body_state.pose_publisher->publish(pose);
 
-  body_state.path.header.stamp = now();
+  body_state.path.header.stamp = stamp;
   body_state.path.poses.push_back(pose);
   while (static_cast<int>(body_state.path.poses.size()) > max_path_length_) {
     body_state.path.poses.erase(body_state.path.poses.begin());
@@ -199,9 +219,10 @@ void DTrackMultiBodyNode::publish_pose(const ParsedBody &body) {
   body_state.path_publisher->publish(body_state.path);
 }
 
-void DTrackMultiBodyNode::publish_identity_transform() {
+void DTrackMultiBodyNode::publish_identity_transform(
+    const rclcpp::Time &stamp) {
   geometry_msgs::msg::TransformStamped transform;
-  transform.header.stamp = now();
+  transform.header.stamp = stamp;
   transform.header.frame_id = parent_frame_;
   transform.child_frame_id = frame_id_;
   transform.transform.rotation.w = 1.0;
