@@ -1,70 +1,292 @@
-# dtrack_publisher
+# DTrack Publisher
 
-This ROS 2 package publishes pose and path data received from a DTrack motion-capture system.
+`dtrack_publisher` is a ROS 2 package that receives rigid-body tracking data
+from an ART DTrack system over UDP and publishes each detected body as a pose
+and a path.
 
-## Start DTrack
-
-- before starting DTrack for the first time, copy the complete `art-tracking` folder from the USB stick to your home directory. The resulting path must be `~/art-tracking`
-- connect the DTrack controller to your desktop computer via ethernet
-- set your ethernet IPv4 to the static IP `192.168.1.2`
-- start the DTrack controller
-- synchronize the DTrack controller with the NTP server and enable the `ts` timestamp in the DTrack output settings
-- start the DTrack software:
-
-```bash
-cd ~/art-tracking/ART-DTrack3/Software/LINUX/DTRACK3_v3.3.1_linux64/DTRACK3_v3.3.1/bin
-./DTRACK3.bin
+```text
+DTrack controller ── UDP (`6d` + `ts`) ──> dtrack_multi_body_node
+                                                ├── PoseStamped per body
+                                                ├── Path per body
+                                                └── parent_frame → frame_id TF
 ```
 
-## Start the C++ multi-body node
+The node keeps the calibrated DTrack coordinate system, converts positions
+from millimetres to metres, and converts DTrack rotation matrices into
+normalized quaternions. DTrack measurement timestamps are preserved when the
+controller and ROS computer are synchronized.
 
-Build and source the workspace:
+## Demo
+
+The video compares the tracked object with its live RViz representation.
+
+<video src="docs/media/dtrack-rviz-demo.mp4" controls width="100%">
+  Your Markdown viewer cannot play this video.
+</video>
+
+[Open or download the DTrack/RViz demo video](docs/media/dtrack-rviz-demo.mp4).
+
+> [!NOTE]
+> GitHub may not render HTML video elements in repository READMEs. The direct
+> link above remains available as a fallback.
+
+## Requirements
+
+- An ART DTrack system with at least one configured rigid body
+- DTrack software installed on the controller computer or operator computer
+- A Linux computer with ROS 2 and `colcon`
+- An Ethernet connection between the DTrack controller and the ROS computer
+- `chrony` when DTrack measurement timestamps must match the ROS system clock
+
+This guide uses ROS 2 Jazzy and the following network as an example:
+
+| Setting | Example | Purpose |
+| --- | --- | --- |
+| ROS computer address | `192.168.1.2` | UDP receiver and NTP server |
+| MoCap subnet | `192.168.1.0/24` | Network shared by DTrack and ROS |
+| DTrack UDP destination port | `5000` | Must match `udp_port` in the package configuration |
+| NTP port | UDP `123` | Used by DTrack to synchronize its clock |
+
+Replace these values with addresses that match your network. The ROS computer
+needs a static address on the DTrack network. You can inspect its configured
+interfaces with:
 
 ```bash
-source /opt/ros/jazzy/setup.bash
-cd ~/Projects/kalimoro_ros2/kalimoro_ws
-colcon build
+ip -brief address
+```
+
+## Configure DTrack output
+
+Menu names can differ slightly between DTrack versions, but the required data
+is the same:
+
+1. Connect the controller and ROS computer to the same Ethernet network.
+2. Start the controller and open the DTrack software.
+3. Configure and calibrate the rigid bodies that should be published.
+4. Set the DTrack output destination to the ROS computer's static IP address.
+5. Set the UDP port to the value configured for this package (`5000` by
+   default).
+6. Enable `6d` rigid-body output and the `ts` timestamp line.
+7. Start the measurement.
+
+![Start the DTrack measurement](docs/media/dtrack-start-measurement.png)
+
+If UFW is active on the ROS computer, allow DTrack data from the MoCap subnet:
+
+```bash
+sudo ufw allow from 192.168.1.0/24 to any port 5000 proto udp
+```
+
+Adjust the subnet and port before running the command.
+
+## Synchronize time with Chrony
+
+DTrack's `ts` value is the number of seconds since UTC midnight. The DTrack
+controller and the ROS computer therefore need a shared time source. In this
+setup, the ROS computer runs Chrony as an NTP server for the controller.
+
+### 1. Install and start Chrony
+
+On Ubuntu or Debian-based systems:
+
+```bash
+sudo apt update
+sudo apt install chrony
+sudo systemctl enable --now chrony
+```
+
+### 2. Allow the DTrack network
+
+Open the Chrony configuration:
+
+```bash
+sudoedit /etc/chrony/chrony.conf
+```
+
+Add an `allow` rule for the MoCap subnet:
+
+```text
+allow 192.168.1.0/24
+```
+
+This turns Chrony into an NTP server for clients in that subnet. Do not use an
+unrestricted `allow` rule on a network that is not trusted.
+
+If the MoCap network is isolated and the ROS computer cannot reach an external
+NTP source, also add:
+
+```text
+local stratum 10
+```
+
+This lets the computer provide a consistent local time base while it is
+offline. It keeps the devices synchronized with each other, but it does not
+provide an accurate external UTC reference. Omit this line when an external or
+institutional NTP source is required.
+
+Restart Chrony after editing the file:
+
+```bash
+sudo systemctl restart chrony
+sudo systemctl status chrony --no-pager
+```
+
+If UFW is active, allow NTP requests only from the MoCap subnet:
+
+```bash
+sudo ufw allow from 192.168.1.0/24 to any port 123 proto udp
+```
+
+### 3. Configure the DTrack controller
+
+In DTrack, open **Hardware → Time**.
+
+![Open the DTrack time settings](docs/media/dtrack-time-menu.png)
+
+Select **NTP**, enter the ROS computer's address as the NTP server, and apply
+the settings. In this example, the server is `192.168.1.2`. Wait until DTrack
+reports the state as `sync`.
+
+![DTrack synchronized to the ROS computer over NTP](docs/media/dtrack-time-ntp-synced.png)
+
+### 4. Verify synchronization
+
+Check the ROS computer's synchronization and time sources:
+
+```bash
+chronyc tracking
+chronyc sources -v
+```
+
+After DTrack has sent NTP requests, verify that the controller appears as a
+client:
+
+```bash
+sudo chronyc clients
+```
+
+See the official [Chrony configuration reference](https://chrony-project.org/doc/latest/chrony.conf.html)
+and [Ubuntu Chrony server guide](https://documentation.ubuntu.com/server/how-to/networking/serve-ntp-with-chrony/index.html)
+for advanced configurations.
+
+## Build and run
+
+Place this package in the `src` directory of a ROS 2 workspace. The following
+commands use ROS 2 Jazzy and `~/ros2_ws`; change the two variables if your setup
+is different:
+
+```bash
+ROS_DISTRO_NAME=jazzy
+ROS_WS=~/ros2_ws
+
+source "/opt/ros/${ROS_DISTRO_NAME}/setup.bash"
+cd "${ROS_WS}"
+colcon build --packages-select dtrack_publisher
 source install/setup.bash
-```
-
-Start the C++ node:
-
-```bash
 ros2 launch dtrack_publisher dtrack_multi_body.launch.py
 ```
 
-Set the UDP port, frame names and maximum path length in
-`config/dtrack_multi_body.yaml`.
+The node listens on all local network interfaces. It creates publishers for a
+body when that body first appears in a valid DTrack packet.
 
-## Listen to the topics
+## Configuration
 
-List the available DTrack topics:
+Runtime defaults are stored in
+[`config/dtrack_multi_body.yaml`](config/dtrack_multi_body.yaml):
+
+| Parameter | Default | Description |
+| --- | --- | --- |
+| `udp_port` | `5000` | Local UDP port used for incoming DTrack packets |
+| `frame_id` | `odom_mocap` | Frame assigned to published poses and paths |
+| `parent_frame` | `odom` | Parent of the published identity transform |
+| `max_path_length` | `500` | Maximum number of poses retained per body path |
+
+Edit the source configuration before building the package. Rebuild and source
+the workspace after changing it. The DTrack destination port and `udp_port`
+must be identical.
+
+## ROS interfaces
+
+### Topics
+
+Each detected rigid body gets two topics:
+
+| Topic | Type | Description |
+| --- | --- | --- |
+| `/dtrack/body_<n>/pose` | `geometry_msgs/msg/PoseStamped` | Latest measured pose |
+| `/dtrack/body_<n>/path` | `nav_msgs/msg/Path` | Recent poses in chronological order |
+
+DTrack body IDs are zero-based, while topic numbers are one-based. For example,
+raw DTrack body ID `0` is published under `/dtrack/body_1`.
+
+The pose message contains:
+
+- `header.stamp`: the DTrack measurement time, or local reception time as a
+  fallback
+- `header.frame_id`: the configured `frame_id`
+- `pose.position`: x, y, and z in metres
+- `pose.orientation`: a normalized quaternion in x, y, z, w order
+
+The path uses the same frame and timestamp. It contains at most
+`max_path_length` poses.
+
+### Transform
+
+For every received packet, the node broadcasts an identity transform from
+`parent_frame` to `frame_id`. With the default configuration, this is:
+
+```text
+odom → odom_mocap
+```
+
+Choose frame names that do not conflict with another TF publisher in your ROS
+system.
+
+### Timestamps
+
+The DTrack `ts` line contains seconds since `00:00 UTC` and resets at midnight.
+The node combines it with the UTC date of the ROS computer. Around midnight,
+it selects the adjacent date that is closest to the packet reception time.
+
+If a packet contains no valid `ts` line, the node emits a throttled warning and
+uses the local reception time. Pose, path, and TF messages all use the selected
+timestamp.
+
+## Verify the data
+
+List the DTrack topics and inspect body 1:
 
 ```bash
 ros2 topic list | grep dtrack
+ros2 topic echo /dtrack/body_1/pose
+ros2 topic hz /dtrack/body_1/pose
 ```
 
-Each DTrack body gets its own pose and path topics.
-
-Use the body ID shown by `ros2 topic list`:
+Inspect the path and default transform:
 
 ```bash
-ros2 topic echo /dtrack/body_<id>/pose
-ros2 topic echo /dtrack/body_<id>/path
-ros2 topic hz /dtrack/body_<id>/pose
+ros2 topic echo /dtrack/body_1/path
+ros2 run tf2_ros tf2_echo odom odom_mocap
 ```
 
-Positions are converted from millimetres to metres and stay in the calibrated DTrack coordinate-system origin. Orientation is computed from the DTrack rotation matrix.
+To check whether UDP packets reach the ROS computer:
 
-## Topic message format
+```bash
+sudo tcpdump -ni any udp port 5000
+```
 
-The pose topic uses `geometry_msgs/msg/PoseStamped`:
+## Troubleshooting
 
-- `header.stamp`: DTrack measurement timestamp from the `ts` line in the UDP packet, or local reception time if `ts` is unavailable
-- `header.frame_id`: `odom_mocap`
-- `pose.position`: x, y and z position in metres
-- `pose.orientation`: orientation as a normalized quaternion in x, y, z, w order
+| Problem | Checks |
+| --- | --- |
+| No DTrack topics appear | Start the DTrack measurement; verify the destination IP, UDP port, `6d` output, network route, and firewall. |
+| The node cannot bind the UDP port | Check for another listener with `sudo ss -ulpn \| grep ':5000'`, or select an unused port in both DTrack and the YAML file. |
+| `no valid ts timestamp` warning | Enable `ts` output in DTrack and restart the measurement. |
+| DTrack does not show `sync` | Verify the NTP server address, Chrony `allow` subnet, UDP port 123, firewall, and `sudo chronyc clients`. |
+| Devices agree but UTC is incorrect | An isolated `local stratum` setup has no external UTC reference; connect Chrony to a trusted upstream source. |
+| Pose time differs by a day near midnight | Confirm that the ROS computer's date and UTC time are correct with `chronyc tracking`. |
+| TF warnings report multiple authorities | Change `parent_frame` or `frame_id`, or disable the conflicting transform publisher. |
 
-The DTrack timestamp contains seconds since 00:00 UTC and resets at midnight. The node combines it with the UTC date of the NTP-synchronized computer and handles packets received around midnight by choosing the closest date. If a packet has no valid `ts` line, the node logs a throttled warning and falls back to the local reception time.
+## License
 
-The path topic uses `nav_msgs/msg/Path`. Its `header.frame_id` is also `odom_mocap`, and its `header.stamp` and contained `geometry_msgs/msg/PoseStamped` messages use the selected DTrack or fallback reception timestamp. Its `poses` array contains the latest poses in chronological order. By default, the path contains up to 500 poses.
+See [LICENSE](LICENSE).
