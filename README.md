@@ -20,11 +20,11 @@ controller and ROS computer are synchronized.
 
 The video compares the tracked object with its live RViz representation.
 
-<video src="docs/media/dtrack-rviz-demo.mp4" controls width="100%">
+<video src="docs/media/dtrack-rviz-demo-small.mp4" controls width="100%">
   Your Markdown viewer cannot play this video.
 </video>
 
-[Open or download the DTrack/RViz demo video](docs/media/dtrack-rviz-demo.mp4).
+[Open or download the DTrack/RViz demo video](docs/media/dtrack-rviz-demo-small.mp4).
 
 > [!NOTE]
 > GitHub may not render HTML video elements in repository READMEs. The direct
