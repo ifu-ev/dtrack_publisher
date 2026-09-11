@@ -1,6 +1,7 @@
 dtrack_multi_body_node:
   ros__parameters:
     udp_port: 5000
+    multicast_ip: ""
     frame_id: odom_mocap
     parent_frame: odom
     max_path_length: 500

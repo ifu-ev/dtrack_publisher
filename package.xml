@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <package format="3">
   <name>dtrack_publisher</name>
-  <version>0.1.0</version>
-  <description>Publishes multi-body pose and path data received from DTrack3 over UDP.</description>
+  <version>0.2.0</version>
+  <description>Publishes rigid-body pose and path data received from ART DTrack systems over UDP.</description>
 
   <maintainer email="david.schnermann@ifu.rwth-aachen.de">David Schnermann</maintainer>
   <license>MIT</license>
@@ -19,6 +19,8 @@
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
   <exec_depend>ros2launch</exec_depend>
+
+  <test_depend>ament_cmake_gtest</test_depend>
 
   <export>
     <build_type>ament_cmake</build_type>

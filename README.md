@@ -5,7 +5,7 @@ from an ART DTrack system over UDP and publishes each detected body as a pose
 and a path.
 
 ```text
-DTrack controller ── UDP (`6d` + `ts`) ──> dtrack_multi_body_node
+DTrack controller ── UDP (`6d` + `ts2`/`ts`) ──> dtrack_multi_body_node
                                                 ├── PoseStamped per body
                                                 ├── Path per body
                                                 └── parent_frame → frame_id TF
@@ -13,22 +13,9 @@ DTrack controller ── UDP (`6d` + `ts`) ──> dtrack_multi_body_node
 
 The node keeps the calibrated DTrack coordinate system, converts positions
 from millimetres to metres, and converts DTrack rotation matrices into
-normalized quaternions. DTrack measurement timestamps are preserved when the
+normalized quaternions. It uses the bundled official DTrackSDK 2.9.0 for UDP
+reception and parsing. DTrack measurement timestamps are preserved when the
 controller and ROS computer are synchronized.
-
-## Demo
-
-The video compares the tracked object with its live RViz representation.
-
-<video src="docs/media/dtrack-rviz-demo-small.mp4" controls width="100%">
-  Your Markdown viewer cannot play this video.
-</video>
-
-[Open or download the DTrack/RViz demo video](docs/media/dtrack-rviz-demo-small.mp4).
-
-> [!NOTE]
-> GitHub may not render HTML video elements in repository READMEs. The direct
-> link above remains available as a fallback.
 
 ## Requirements
 
@@ -66,7 +53,8 @@ is the same:
 4. Set the DTrack output destination to the ROS computer's static IP address.
 5. Set the UDP port to the value configured for this package (`5000` by
    default).
-6. Enable `6d` rigid-body output and the `ts` timestamp line.
+6. Enable `6d` rigid-body output and preferably the extended `ts2` timestamp.
+   The legacy `ts` format remains supported as a fallback.
 7. Start the measurement.
 
 ![Start the DTrack measurement](docs/media/dtrack-start-measurement.png)
@@ -81,8 +69,9 @@ Adjust the subnet and port before running the command.
 
 ## Synchronize time with Chrony
 
-DTrack's `ts` value is the number of seconds since UTC midnight. The DTrack
-controller and the ROS computer therefore need a shared time source. In this
+DTrack's preferred `ts2` value is an absolute Unix timestamp. The legacy `ts`
+value is the number of seconds since UTC midnight. For either format, the
+DTrack controller and ROS computer should use a shared time source. In this
 setup, the ROS computer runs Chrony as an NTP server for the controller.
 
 ### 1. Install and start Chrony
@@ -186,8 +175,10 @@ source install/setup.bash
 ros2 launch dtrack_publisher dtrack_multi_body.launch.py
 ```
 
-The node listens on all local network interfaces. It creates publishers for a
-body when that body first appears in a valid DTrack packet.
+The package contains the required DTrackSDK sources, so no separate SDK
+installation or network download is needed during the build. The node listens
+on all local network interfaces. It creates publishers only after a body first
+appears as tracked in a valid DTrack packet.
 
 ## Configuration
 
@@ -196,14 +187,16 @@ Runtime defaults are stored in
 
 | Parameter | Default | Description |
 | --- | --- | --- |
-| `udp_port` | `5000` | Local UDP port used for incoming DTrack packets |
+| `udp_port` | `5000` | Local UDP port in the range 1–65535 |
+| `multicast_ip` | empty | Optional IPv4 multicast group; empty selects unicast listening |
 | `frame_id` | `odom_mocap` | Frame assigned to published poses and paths |
 | `parent_frame` | `odom` | Parent of the published identity transform |
-| `max_path_length` | `500` | Maximum number of poses retained per body path |
+| `max_path_length` | `500` | Maximum number of retained poses; must be at least 1 |
 
 Edit the source configuration before building the package. Rebuild and source
 the workspace after changing it. The DTrack destination port and `udp_port`
-must be identical.
+must be identical. For multicast, configure the same group address in DTrack
+and `multicast_ip`.
 
 ## ROS interfaces
 
@@ -213,11 +206,14 @@ Each detected rigid body gets two topics:
 
 | Topic | Type | Description |
 | --- | --- | --- |
-| `/dtrack/body_<n>/pose` | `geometry_msgs/msg/PoseStamped` | Latest measured pose |
-| `/dtrack/body_<n>/path` | `nav_msgs/msg/Path` | Recent poses in chronological order |
+| `dtrack/body_<n>/pose` | `geometry_msgs/msg/PoseStamped` | Latest measured pose |
+| `dtrack/body_<n>/path` | `nav_msgs/msg/Path` | Recent poses in chronological order |
 
 DTrack body IDs are zero-based, while topic numbers are one-based. For example,
 raw DTrack body ID `0` is published under `/dtrack/body_1`.
+The names are relative: at the root namespace they resolve with a leading `/`;
+under `/mocap`, for example, they become `/mocap/dtrack/body_1/...` and can be
+remapped normally.
 
 The pose message contains:
 
@@ -229,6 +225,13 @@ The pose message contains:
 
 The path uses the same frame and timestamp. It contains at most
 `max_path_length` poses.
+
+### Tracking quality
+
+DTrack marks an untracked body with a negative quality value. Such bodies do
+not produce pose or path messages. On tracking loss, the stored path for that
+body is cleared; the first valid pose after reacquisition starts a new path
+segment. No publishers are created for bodies that have never been tracked.
 
 ### Transform
 
@@ -244,13 +247,15 @@ system.
 
 ### Timestamps
 
-The DTrack `ts` line contains seconds since `00:00 UTC` and resets at midnight.
-The node combines it with the UTC date of the ROS computer. Around midnight,
-it selects the adjacent date that is closest to the packet reception time.
+The node selects timestamps in this order:
 
-If a packet contains no valid `ts` line, the node emits a throttled warning and
-uses the local reception time. Pose, path, and TF messages all use the selected
-timestamp.
+1. `ts2`: Unix seconds plus microseconds are used directly.
+2. `ts`: seconds since `00:00 UTC` are combined with the nearest UTC date;
+   packets around midnight can therefore resolve to the previous or next day.
+3. If neither timestamp is valid, the node emits a throttled warning and uses
+   local reception time.
+
+Pose, path, and TF messages all use the selected timestamp.
 
 ## Verify the data
 
@@ -281,7 +286,9 @@ sudo tcpdump -ni any udp port 5000
 | --- | --- |
 | No DTrack topics appear | Start the DTrack measurement; verify the destination IP, UDP port, `6d` output, network route, and firewall. |
 | The node cannot bind the UDP port | Check for another listener with `sudo ss -ulpn \| grep ':5000'`, or select an unused port in both DTrack and the YAML file. |
-| `no valid ts timestamp` warning | Enable `ts` output in DTrack and restart the measurement. |
+| `no valid ts or ts2 timestamp` warning | Enable `ts2` (preferred) or `ts` output in DTrack and restart the measurement. |
+| Multicast listener fails at startup | Verify that `multicast_ip` is an IPv4 multicast address in `224.0.0.0/4` and that the host has a route for the selected interface. |
+| Paths stop and restart | DTrack reported negative quality; this intentionally clears the affected body's previous path segment. |
 | DTrack does not show `sync` | Verify the NTP server address, Chrony `allow` subnet, UDP port 123, firewall, and `sudo chronyc clients`. |
 | Devices agree but UTC is incorrect | An isolated `local stratum` setup has no external UTC reference; connect Chrony to a trusted upstream source. |
 | Pose time differs by a day near midnight | Confirm that the ROS computer's date and UTC time are correct with `chronyc tracking`. |
@@ -289,4 +296,7 @@ sudo tcpdump -ni any udp port 5000
 
 ## License
 
-See [LICENSE](LICENSE).
+The ROS package's own code is licensed under the [MIT License](LICENSE).
+DTrackSDK 2.9.0 is bundled unchanged under the BSD 3-Clause License; see
+[`third_party/DTrackSDK/license.txt`](third_party/DTrackSDK/license.txt). Both
+license files are installed with the package.
