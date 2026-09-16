@@ -17,6 +17,19 @@ normalized quaternions. It uses the bundled official DTrackSDK 2.9.0 for UDP
 reception and parsing. DTrack measurement timestamps are preserved when the
 controller and ROS computer are synchronized.
 
+## Demo
+
+The video shows a tracked object together with its live representation in
+RViz.
+
+<video src="docs/media/MoCapDemo.mp4" controls width="100%">
+  Your Markdown viewer cannot play this video.
+  <a href="docs/media/MoCapDemo.mp4">Open or download the MoCap demo video.</a>
+</video>
+
+[Open or download `MoCapDemo.mp4`](docs/media/MoCapDemo.mp4) if the video does
+not play directly in the README.
+
 ## Requirements
 
 - An ART DTrack system with at least one configured rigid body
