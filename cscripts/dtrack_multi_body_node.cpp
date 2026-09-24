@@ -7,6 +7,9 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
+#include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <regex>
 #include <sstream>
@@ -69,8 +72,8 @@ public:
     {
       throw std::runtime_error("Missing required parameter: ~udp_port");
     }
-    private_nh_.param<std::string>("frame_id", frame_id_, "odom_mocap");
-    private_nh_.param<std::string>("parent_frame", parent_frame_, "odom");
+    private_nh_.param<std::string>("frame_id", frame_id_, "odom_mocap"); // config
+    private_nh_.param<std::string>("parent_frame", parent_frame_, "odom"); // config
     if (!private_nh_.getParam("max_path_length", max_path_length_))
     {
       throw std::runtime_error("Missing required parameter: ~max_path_length");
@@ -104,17 +107,15 @@ public:
       const ssize_t received = recvfrom(socket_fd_, buffer.data(), buffer.size(), 0,
                                         reinterpret_cast<sockaddr*>(&sender_addr), &sender_len);
 
-      if (received < 0)
+      if (received < 0) // checken mit continue
       {
         if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR)
         {
-          publishStaticTransform();
           ros::spinOnce();
           continue;
         }
 
         ROS_WARN_THROTTLE(1.0, "Failed to receive DTrack UDP packet: %s", strerror(errno));
-        publishStaticTransform();
         ros::spinOnce();
         continue;
       }
@@ -127,7 +128,10 @@ public:
         publishPose(pose.body_id, pose.pose);
       }
 
-      publishStaticTransform();
+      if (!poses.empty())
+      {
+        publishStaticTransform(poses.front().pose.header.stamp);
+      }
       ros::spinOnce();
     }
   }
@@ -174,16 +178,87 @@ private:
     std::vector<ParsedPose> poses;
     std::istringstream stream(packet);
     std::string line;
+    ros::Time measurement_stamp;
+    bool has_measurement_stamp = false;
 
+    // DTrack's "ts" value is the UTC time of the camera exposure in seconds
+    // since midnight. Determine it before parsing poses because all data in the
+    // datagram belong to the same measurement frame.
     while (std::getline(stream, line))
     {
-      parseLine(trim(line), poses);
+      const std::string trimmed_line = trim(line);
+      if (startsWith(trimmed_line, "ts "))
+      {
+        has_measurement_stamp = parseTimestamp(trimmed_line, measurement_stamp);
+        break;
+      }
+    }
+
+    if (!has_measurement_stamp)
+    {
+      ROS_WARN_THROTTLE(1.0, "Skipping DTrack packet without a valid ts timestamp");
+      return poses;
+    }
+
+    stream.clear();
+    stream.seekg(0);
+    while (std::getline(stream, line))
+    {
+      parseLine(trim(line), measurement_stamp, poses);
     }
 
     return poses;
   }
 
-  void parseLine(const std::string& line, std::vector<ParsedPose>& poses)
+  bool parseTimestamp(const std::string& line, ros::Time& stamp) const
+  {
+    std::istringstream timestamp_stream(line);
+    std::string tag;
+    double seconds_since_midnight = 0.0;
+    if (!(timestamp_stream >> tag >> seconds_since_midnight) || tag != "ts" ||
+        !std::isfinite(seconds_since_midnight) || seconds_since_midnight < 0.0 ||
+        seconds_since_midnight >= 86400.0)
+    {
+      return false;
+    }
+
+    // The DTrack protocol contains no date. Infer the UTC date from the local
+    // wall clock (which is NTP-synchronised with the controller) and select the
+    // nearest day, also covering packets received around UTC midnight.
+    constexpr int64_t nanoseconds_per_second = 1000000000LL;
+    constexpr int64_t seconds_per_day = 86400LL;
+    const int64_t time_of_day_ns =
+        static_cast<int64_t>(std::llround(seconds_since_midnight * nanoseconds_per_second));
+    const ros::WallTime wall_now = ros::WallTime::now();
+    const int64_t wall_now_ns = static_cast<int64_t>(wall_now.sec) * nanoseconds_per_second +
+                                static_cast<int64_t>(wall_now.nsec);
+    const int64_t utc_day_start_sec =
+        (static_cast<int64_t>(wall_now.sec) / seconds_per_day) * seconds_per_day;
+
+    const int64_t current_day_stamp_ns =
+        utc_day_start_sec * nanoseconds_per_second + time_of_day_ns;
+    int64_t best_stamp_ns = current_day_stamp_ns;
+    int64_t best_distance_ns = std::llabs(best_stamp_ns - wall_now_ns);
+    for (const int day_offset : {-1, 1})
+    {
+      const int64_t candidate_ns = current_day_stamp_ns +
+                                   static_cast<int64_t>(day_offset) * seconds_per_day *
+                                       nanoseconds_per_second;
+      const int64_t distance_ns = std::llabs(candidate_ns - wall_now_ns);
+      if (distance_ns < best_distance_ns)
+      {
+        best_stamp_ns = candidate_ns;
+        best_distance_ns = distance_ns;
+      }
+    }
+
+    stamp = ros::Time(static_cast<uint32_t>(best_stamp_ns / nanoseconds_per_second),
+                      static_cast<uint32_t>(best_stamp_ns % nanoseconds_per_second));
+    return true;
+  }
+
+  void parseLine(const std::string& line, const ros::Time& measurement_stamp,
+                 std::vector<ParsedPose>& poses)
   {
     if (!startsWith(line, "6d "))
     {
@@ -255,7 +330,7 @@ private:
 
       ParsedPose parsed_pose;
       parsed_pose.body_id = body_id;
-      parsed_pose.pose = makePose(raw_x, raw_y, raw_z, rotation_values);
+      parsed_pose.pose = makePose(raw_x, raw_y, raw_z, rotation_values, measurement_stamp);
       poses.push_back(parsed_pose);
     }
   }
@@ -275,7 +350,8 @@ private:
   }
 
   geometry_msgs::PoseStamped makePose(double raw_x, double raw_y, double raw_z,
-                                      const RotationValues& rotation_values) const
+                                      const RotationValues& rotation_values,
+                                      const ros::Time& measurement_stamp) const
   {
     const double x = raw_x / 1000.0;
     const double y = raw_y / 1000.0;
@@ -291,7 +367,7 @@ private:
     quaternion.normalize();
 
     geometry_msgs::PoseStamped pose;
-    pose.header.stamp = ros::Time::now();
+    pose.header.stamp = measurement_stamp;
     pose.header.frame_id = frame_id_;
     pose.pose.position.x = x;
     pose.pose.position.y = y;
@@ -306,7 +382,7 @@ private:
     BodyState& body_state = getBodyState(body_id);
     body_state.pose_pub.publish(pose);
 
-    body_state.path.header.stamp = ros::Time::now();
+    body_state.path.header.stamp = pose.header.stamp;
     body_state.path.poses.push_back(pose);
     while (static_cast<int>(body_state.path.poses.size()) > max_path_length_)
     {
@@ -335,10 +411,10 @@ private:
     return bodies_.emplace(body_id, body_state).first->second;
   }
 
-  void publishStaticTransform()
+  void publishStaticTransform(const ros::Time& measurement_stamp)
   {
     geometry_msgs::TransformStamped transform;
-    transform.header.stamp = ros::Time::now();
+    transform.header.stamp = measurement_stamp;
     transform.header.frame_id = parent_frame_;
     transform.child_frame_id = frame_id_;
     transform.transform.translation.x = 0.0;

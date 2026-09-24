@@ -57,7 +57,9 @@ Positions are converted from millimetres to metres and stay in the calibrated DT
 
 The pose topic uses `geometry_msgs/PoseStamped`:
 
-- `header.stamp`: ROS timestamp of the received pose
+- `header.stamp`: DTrack measurement timestamp (`ts`, camera exposure time). Since DTrack
+  transmits UTC seconds since midnight without a date, the UTC date is inferred from the
+  receiver's NTP-synchronised wall clock.
 - `header.frame_id`: `odom_mocap`
 - `pose.position`: x, y and z position in metres
 - `pose.orientation`: orientation as a normalized quaternion in x, y, z, w order
