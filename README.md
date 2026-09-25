@@ -1,3 +1,4 @@
+
 # DTrack Publisher
 
 `dtrack_publisher` is a ROS 2 package that receives rigid-body tracking data
@@ -22,10 +23,7 @@ controller and ROS computer are synchronized.
 The video shows a tracked object together with its live representation in
 RViz.
 
-<video src="docs/media/MoCapDemo.mp4" controls width="100%">
-  Your Markdown viewer cannot play this video.
-  <a href="docs/media/MoCapDemo.mp4">Open or download the MoCap demo video.</a>
-</video>
+https://github.com/user-attachments/assets/4772e1b3-f09e-4081-8d95-108698838c49
 
 [Open or download `MoCapDemo.mp4`](docs/media/MoCapDemo.mp4) if the video does
 not play directly in the README.
