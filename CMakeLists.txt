@@ -15,6 +15,16 @@ find_package(nav_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(tf2_ros REQUIRED)
 
+file(STRINGS
+  "${CMAKE_CURRENT_SOURCE_DIR}/third_party/DTrackSDK/VERSION"
+  DTRACKSDK_VERSION
+  LIMIT_COUNT 1
+)
+if(NOT DTRACKSDK_VERSION)
+  message(FATAL_ERROR "Bundled DTrackSDK version is missing")
+endif()
+message(STATUS "Using bundled DTrackSDK ${DTRACKSDK_VERSION}")
+
 add_library(dtrack_sdk STATIC
   third_party/DTrackSDK/src/DTrackData.cpp
   third_party/DTrackSDK/src/DTrackNet.cpp
@@ -86,6 +96,11 @@ install(FILES LICENSE
 install(FILES third_party/DTrackSDK/license.txt
   DESTINATION share/${PROJECT_NAME}/licenses
   RENAME DTrackSDK-BSD-3-Clause.txt
+)
+install(FILES
+  third_party/DTrackSDK/UPSTREAM.md
+  third_party/DTrackSDK/VERSION
+  DESTINATION share/${PROJECT_NAME}/third_party/DTrackSDK
 )
 
 if(BUILD_TESTING)

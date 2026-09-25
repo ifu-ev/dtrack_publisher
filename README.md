@@ -158,6 +158,41 @@ See the official [Chrony configuration reference](https://chrony-project.org/doc
 and [Ubuntu Chrony server guide](https://documentation.ubuntu.com/server/how-to/networking/serve-ntp-with-chrony/index.html)
 for advanced configurations.
 
+## DTrackSDK dependency
+
+The canonical upstream source is the official
+[ART DTrackSDK repository](https://github.com/ar-tracking/DTrackSDK). This
+package pins and vendors **DTrackSDK 2.9.0** (upstream tag
+[`v2.9.0`](https://github.com/ar-tracking/DTrackSDK/tree/v2.9.0), commit
+`110f7e5edf8b93d62d22cd22eba41d5197b7b932`) under
+`third_party/DTrackSDK`. The pinned version is also recorded in
+[`third_party/DTrackSDK/VERSION`](third_party/DTrackSDK/VERSION), and CMake
+prints it while configuring the package.
+
+No separate SDK installation, Git checkout, or network access is required for
+a normal build. CMake compiles the bundled SDK sources into a private static
+library. This keeps customer builds reproducible and prevents a new upstream
+release from changing them unexpectedly.
+
+### Updating the bundled SDK
+
+To deliberately adopt a newer DTrackSDK release:
+
+1. Select a specific release tag from the upstream repository. Do not vendor
+   the moving `master` branch.
+2. Download or clone that tag and replace the SDK headers and implementation
+   files below `third_party/DTrackSDK`. Keep the upstream sources unchanged.
+3. Update `third_party/DTrackSDK/VERSION` and the version, tag, and commit in
+   `third_party/DTrackSDK/UPSTREAM.md` and this README.
+4. If the upstream directory layout or source-file list changed, update the
+   private `dtrack_sdk` target in `CMakeLists.txt` accordingly.
+5. Check whether the upstream license changed, then run the complete package
+   build and test suite before committing the update.
+
+The package currently depends on the 2.9.0 C++ API and does not automatically
+fall forward to the newest release. This makes future upgrades explicit and
+testable.
+
 ## Build and run
 
 Place this package in the `src` directory of a ROS 2 workspace. The following
@@ -175,10 +210,8 @@ source install/setup.bash
 ros2 launch dtrack_publisher dtrack_multi_body.launch.py
 ```
 
-The package contains the required DTrackSDK sources, so no separate SDK
-installation or network download is needed during the build. The node listens
-on all local network interfaces. It creates publishers only after a body first
-appears as tracked in a valid DTrack packet.
+The node listens on all local network interfaces. It creates publishers only
+after a body first appears as tracked in a valid DTrack packet.
 
 ## Configuration
 
@@ -297,6 +330,8 @@ sudo tcpdump -ni any udp port 5000
 ## License
 
 The ROS package's own code is licensed under the [MIT License](LICENSE).
-DTrackSDK 2.9.0 is bundled unchanged under the BSD 3-Clause License; see
+DTrackSDK 2.9.0 is obtained from the official ART repository and bundled
+unchanged under the BSD 3-Clause License; see
 [`third_party/DTrackSDK/license.txt`](third_party/DTrackSDK/license.txt). Both
-license files are installed with the package.
+license files, plus the SDK version and upstream provenance, are installed with
+the package.
