@@ -346,3 +346,11 @@ unchanged under the BSD 3-Clause License; see
 [`third_party/DTrackSDK/license.txt`](third_party/DTrackSDK/license.txt). Both
 license files, plus the SDK version and upstream provenance, are installed with
 the package.
+
+## Acknowledgments
+
+Parts of the open-source software were developed as part of the IGF project KaliMoRo (Automatic Calibration of Mobile Robots Using Large-Scale Metrology Systems), which is funded by the Federal Ministry for Economic Affairs and Energy pursuant to a resolution of the German Bundestag.
+
+Funding Code: 01IF23289N <br>
+Title: KaliMoRo - Automatische Kalibrierung mobiler Roboter mittels Large-Scale Metrology Systeme <br>
+[Projekt-Homepage](https://ifu.rwth-aachen.de/forschung/kalimoro_de/)
